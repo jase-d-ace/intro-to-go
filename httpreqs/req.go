@@ -3,37 +3,33 @@ package httpreqs
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net/http"
+	"time"
 )
 
-func MakeReq() {
-	res, err := http.Get("https://jsonplaceholder.typicode.com/todos/1")
+var myClient = &http.Client{Timeout: 10 * time.Second}
 
+//structs need capital letters. go figure.
+
+type Message struct {
+	UserId    float64
+	Id        float64
+	Title     string
+	Completed bool
+}
+
+func getJson(target interface{}) error {
+	res, err := myClient.Get("https://jsonplaceholder.typicode.com/todos/1")
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
-
 	defer res.Body.Close()
 
-	resp, err := ioutil.ReadAll(res.Body)
+	return json.NewDecoder(res.Body).Decode(target)
+}
 
-	type Message struct {
-		userId    float64
-		id        float64
-		title     string
-		completed bool
-	}
-
-	var m Message
-
-	json.Unmarshal(resp, &m)
-
-	if err != nil {
-		log.Fatalln(err)
-	}
-
+func MakeReq() {
+	m := Message{}
+	getJson(&m)
 	fmt.Println(m)
-
 }
