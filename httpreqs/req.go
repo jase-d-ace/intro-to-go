@@ -10,6 +10,7 @@ import (
 var myClient = &http.Client{Timeout: 10 * time.Second}
 
 //structs need capital letters. go figure.
+//json solution found here: https://stackoverflow.com/questions/17156371/how-to-get-json-response-in-golang
 
 type Message struct {
 	UserId    float64
