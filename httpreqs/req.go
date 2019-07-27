@@ -3,6 +3,7 @@ package httpreqs
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 )
@@ -13,10 +14,10 @@ var myClient = &http.Client{Timeout: 10 * time.Second}
 //json solution found here: https://stackoverflow.com/questions/17156371/how-to-get-json-response-in-golang
 
 type Message struct {
-	UserId    float64
-	Id        float64
-	Title     string
-	Completed bool
+	UserId    int    `json:"userId"`
+	Id        int    `json:"id"`
+	Title     string `json:"title"`
+	Completed bool   `json:"completed"`
 }
 
 func getJson(target interface{}) error {
@@ -26,11 +27,20 @@ func getJson(target interface{}) error {
 	}
 	defer res.Body.Close()
 
-	return json.NewDecoder(res.Body).Decode(target)
+	body, err := ioutil.ReadAll(res.Body)
+
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(body, target)
 }
 
 func MakeReq() {
 	m := Message{}
 	getJson(&m)
-	fmt.Println(m)
+	newJson, err := json.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%s\n", newJson)
 }
