@@ -11,6 +11,8 @@ import (
 
 var myClient = &http.Client{Timeout: 10 * time.Second}
 
+//empty struct that will eventually hold data from the API that we hit on a route.
+
 type Message struct {
 	UserId    int  `json:"userId"`
 	Id        int  `json:"id"`
@@ -29,6 +31,8 @@ func sayHello(w http.ResponseWriter, r *http.Request) {
 	message = "Hello " + message
 	fmt.Fprintf(w, message)
 }
+
+//w and r are the (req, res) callbacks that javascript uses to handle server requests
 
 func getSingleJson(w http.ResponseWriter, r *http.Request) {
 	res, err := myClient.Get("https://jsonplaceholder.typicode.com/todos/1")
@@ -56,6 +60,8 @@ func getSingleJson(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	//HandleFunc is the golang equivalent of routing.
+	//Pass this method a route, and a callback function and the server will call the function once the route is hit.
 	http.HandleFunc("/", splashPage)
 	http.HandleFunc("/world", sayHello)
 	http.HandleFunc("/todos", getSingleJson)
