@@ -14,10 +14,10 @@ var myClient = &http.Client{Timeout: 10 * time.Second}
 //empty struct that will eventually hold data from the API that we hit on a route.
 
 type Message struct {
-	UserId    int  `json:"userId"`
-	Id        int  `json:"id"`
-	Title     int  `json:"title"`
-	Completed bool `json:"completed"`
+	UserId    int    `json:"userId"`
+	Id        int    `json:"id"`
+	Title     string `json:"title"`
+	Completed bool   `json:"completed"`
 }
 
 func splashPage(w http.ResponseWriter, r *http.Request) {
@@ -30,6 +30,29 @@ func sayHello(w http.ResponseWriter, r *http.Request) {
 	message = strings.TrimPrefix(message, "/")
 	message = "Hello " + message
 	fmt.Fprintf(w, message)
+}
+
+func getJsonArray(w http.ResponseWriter, r *http.Request) {
+
+	res, err := myClient.Get("https://jsonplaceholder.typicode.com/todos")
+
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+
+	if err != nil {
+		panic(err)
+	}
+
+	var todos []Message
+
+	json.Unmarshal([]byte(body), &todos)
+
+	fmt.Fprint(w, todos)
+
 }
 
 //w and r are the (req, res) callbacks that javascript uses to handle server requests
@@ -64,7 +87,7 @@ func main() {
 	//Pass this method a route, and a callback function and the server will call the function once the route is hit.
 	http.HandleFunc("/", splashPage)
 	http.HandleFunc("/world", sayHello)
-	http.HandleFunc("/todos", getSingleJson)
+	http.HandleFunc("/todos", getJsonArray)
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		panic(err)
 	}
