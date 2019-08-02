@@ -51,6 +51,8 @@ func getJsonArray(w http.ResponseWriter, r *http.Request) {
 
 	json.Unmarshal([]byte(body), &todos)
 
+	//proper json array solution found here: https://stackoverflow.com/questions/28411394/golang-and-json-with-array-of-struct
+
 	jsonData, _ := json.Marshal(todos)
 
 	w.Write(jsonData)
