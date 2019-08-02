@@ -51,7 +51,9 @@ func getJsonArray(w http.ResponseWriter, r *http.Request) {
 
 	json.Unmarshal([]byte(body), &todos)
 
-	fmt.Fprint(w, todos)
+	jsonData, _ := json.Marshal(todos)
+
+	w.Write(jsonData)
 
 }
 
