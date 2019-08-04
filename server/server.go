@@ -21,6 +21,10 @@ type Message struct {
 	Completed bool   `json:"completed"`
 }
 
+var todos []Message
+
+var extraTodos []Message
+
 func splashPage(w http.ResponseWriter, r *http.Request) {
 	message := "hello world!"
 	fmt.Fprintf(w, message)
@@ -47,8 +51,6 @@ func getJsonArray(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-
-	var todos []Message
 
 	json.Unmarshal([]byte(body), &todos)
 
@@ -87,12 +89,29 @@ func getSingleJson(w http.ResponseWriter, r *http.Request) {
 	w.Write(newJson)
 }
 
+func pushNewTodo(w http.ResponseWriter, r *http.Request) {
+
+	newTodo := Message{}
+
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	json.Unmarshal(reqBody, &newTodo)
+	extraTodos = append(extraTodos, newTodo)
+	jsonTodos, _ := json.Marshal(extraTodos)
+
+	w.Write(jsonTodos)
+}
+
 func main() {
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.HandleFunc("/", splashPage)
 	router.HandleFunc("/world", sayHello)
-	router.HandleFunc("/todos", getJsonArray)
+	router.HandleFunc("/todos", getJsonArray).Methods("GET")
+	router.HandleFunc("/todos", pushNewTodo).Methods("POST")
 	if err := http.ListenAndServe(":8080", router); err != nil {
 		panic(err)
 	}
