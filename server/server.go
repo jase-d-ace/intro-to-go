@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -87,12 +88,12 @@ func getSingleJson(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	//HandleFunc is the golang equivalent of routing.
-	//Pass this method a route, and a callback function and the server will call the function once the route is hit.
-	http.HandleFunc("/", splashPage)
-	http.HandleFunc("/world", sayHello)
-	http.HandleFunc("/todos", getJsonArray)
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	router := mux.NewRouter().StrictSlash(true)
+
+	router.HandleFunc("/", splashPage)
+	router.HandleFunc("/world", sayHello)
+	router.HandleFunc("/todos", getJsonArray)
+	if err := http.ListenAndServe(":8080", router); err != nil {
 		panic(err)
 	}
 }
