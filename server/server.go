@@ -8,13 +8,10 @@ import (
 	_ "github.com/lib/pq"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 )
 
 var myClient = &http.Client{Timeout: 10 * time.Second}
-
-//empty struct that will eventually hold data from the API that we hit on a route.
 
 const (
 	host   = "localhost"
@@ -23,6 +20,7 @@ const (
 	dbname = "golang_test_db"
 )
 
+//empty struct that will eventually hold data from the API that we hit on a route.
 type Message struct {
 	UserId    int    `json:"userId"`
 	Id        int    `json:"id"`
@@ -36,19 +34,75 @@ type Person struct {
 	Age      int    `json:"age"`
 }
 
+//tutorial on properly adding a psql database found here: https://www.sohamkamani.com/blog/2017/10/18/golang-adding-database-to-web-application/
+
+//make the database methods available to the entire application to DRY code
+//these methods will then be applied to a "controller" struct that we'll use to call the methods
+type Store interface {
+	CreatePerson(person *Person) error
+	GetPersons() ([]*Person, error)
+}
+
+type dbStore struct {
+	db *sql.DB
+}
+
+//defining the methods that we set up in our interface
+//interfaces hold methods that can be applied to structs, effectively making an OOP-style of calling methods.
+//function signature: keyword func + struct (optional) + function name + parameters + return type
+func (store *dbStore) CreatePerson(person *Person) error {
+	_, err := store.db.Query(`INSERT INTO persons(nickname, age) VALUES($1, $2) RETURNING id`, person.Nickname, person.Age)
+	return err
+}
+
+func (store *dbStore) GetPersons() ([]*Person, error) {
+	persons := []*Person{}
+	res, err := store.db.Query(`SELECT * FROM persons`)
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer res.Close()
+
+	for res.Next() {
+		person := &Person{}
+		if err := res.Scan(&person.Id, &person.Nickname, &person.Age); err != nil {
+			fmt.Println("Ooops, messed up", err)
+			return nil, err
+		}
+		persons = append(persons, person)
+	}
+	return persons, nil
+}
+
+//make the store available application-wide. Defining it as a struct before isn't enough; now we instantiate using this variable and the following function
+var store Store
+
+func InitStore(s Store) {
+	store = s
+}
+
+//empty arrays that we use in the other functions to hold data from our API calls
+
 var todos []Message
+
+var Persons []Person
 
 var extraTodos []Message
 
-func splashPage(w http.ResponseWriter, r *http.Request) {
-	message := "hello world!"
-	fmt.Fprintf(w, message)
+func getPersonHandler(w http.ResponseWriter, r *http.Request) {
+	persons, err := store.GetPersons()
+
+	jsonData, err := json.Marshal(persons)
+	if err != nil {
+		panic(err)
+	}
+	w.Write(jsonData)
 }
 
-func sayHello(w http.ResponseWriter, r *http.Request) {
-	message := r.URL.Path
-	message = strings.TrimPrefix(message, "/")
-	message = "Hello " + message
+func splashPage(w http.ResponseWriter, r *http.Request) {
+	message := "hello world!"
 	fmt.Fprintf(w, message)
 }
 
@@ -74,7 +128,6 @@ func getJsonArray(w http.ResponseWriter, r *http.Request) {
 	jsonData, _ := json.Marshal(todos)
 
 	w.Write(jsonData)
-
 }
 
 //w and r are the (req, res) callbacks that javascript uses to handle server requests
@@ -104,20 +157,24 @@ func getSingleJson(w http.ResponseWriter, r *http.Request) {
 	w.Write(newJson)
 }
 
-func pushNewTodo(w http.ResponseWriter, r *http.Request) {
+func createPersonHandler(w http.ResponseWriter, r *http.Request) {
 
-	// newTodo := Message{}
+	newPerson := Person{}
 
-	// reqBody, err := ioutil.ReadAll(r.Body)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	reqBody, err := ioutil.ReadAll(r.Body)
+	json.Unmarshal(reqBody, &newPerson)
 
-	// json.Unmarshal(reqBody, &newTodo)
-	// extraTodos = append(extraTodos, newTodo)
-	// jsonTodos, _ := json.Marshal(extraTodos)
+	store.CreatePerson(&newPerson)
 
-	// w.Write(jsonTodos)
+	jsonPerson, _ := json.Marshal(newPerson)
+
+	if err != nil {
+		panic(err)
+	}
+	w.Write(jsonPerson)
+}
+
+func main() {
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+"dbname=%s sslmode=disable", host, port, user, dbname)
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
@@ -132,33 +189,14 @@ func pushNewTodo(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Println("db connection live")
 
-	newPerson := Person{}
-
-	reqBody, err := ioutil.ReadAll(r.Body)
-	json.Unmarshal(reqBody, &newPerson)
-
-	sqlStatement := `INSERT INTO persons(nickname, age) VALUES($1, $2) RETURNING id`
-	id := 0
-	err = db.QueryRow(sqlStatement, newPerson.Nickname, newPerson.Age).Scan(&id)
-
-	jsonPerson, _ := json.Marshal(newPerson)
-
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("new id is: ", id)
-	w.Write(jsonPerson)
-}
-
-func main() {
+	InitStore(&dbStore{db: db})
 
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.HandleFunc("/", splashPage)
-	router.HandleFunc("/world", sayHello)
 	router.HandleFunc("/todos", getJsonArray).Methods("GET")
-	router.HandleFunc("/todos", pushNewTodo).Methods("POST")
+	router.HandleFunc("/people", getPersonHandler).Methods("GET")
+	router.HandleFunc("/todos", createPersonHandler).Methods("POST")
 	if err := http.ListenAndServe(":8080", router); err != nil {
 		panic(err)
 	}
