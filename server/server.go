@@ -8,6 +8,7 @@ import (
 	_ "github.com/lib/pq"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -41,6 +42,7 @@ type Person struct {
 type Store interface {
 	CreatePerson(person *Person) error
 	GetPersons() ([]*Person, error)
+	GetOnePerson(id int) (*Person, error)
 }
 
 type dbStore struct {
@@ -53,6 +55,19 @@ type dbStore struct {
 func (store *dbStore) CreatePerson(person *Person) error {
 	_, err := store.db.Query(`INSERT INTO persons(nickname, age) VALUES($1, $2) RETURNING id`, person.Nickname, person.Age)
 	return err
+}
+
+func (store *dbStore) GetOnePerson(id int) (*Person, error) {
+	personRes := &Person{}
+	res := store.db.QueryRow(`SELECT * FROM persons WHERE id=$1`, id)
+
+	//so res.Scan is the way that populates the empty person struct with sql data
+	if err := res.Scan(&personRes.Id, &personRes.Nickname, &personRes.Age); err != nil {
+		fmt.Println("Ooops, messed up", err)
+		return nil, err
+	}
+	return personRes, nil
+
 }
 
 func (store *dbStore) GetPersons() ([]*Person, error) {
@@ -98,6 +113,22 @@ func getPersonHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
+	w.Write(jsonData)
+}
+
+func getOnePersonHandler(w http.ResponseWriter, r *http.Request) {
+	personId := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(personId)
+
+	if err != nil {
+		panic(err)
+	}
+	person, err := store.GetOnePerson(id)
+	fmt.Println("looking for this dude: ", id)
+	if err != nil {
+		panic(err)
+	}
+	jsonData, err := json.Marshal(person)
 	w.Write(jsonData)
 }
 
@@ -197,6 +228,7 @@ func main() {
 	router.HandleFunc("/todos", getJsonArray).Methods("GET")
 	router.HandleFunc("/people", getPersonHandler).Methods("GET")
 	router.HandleFunc("/todos", createPersonHandler).Methods("POST")
+	router.HandleFunc("/people/{id}", getOnePersonHandler).Methods("GET")
 	if err := http.ListenAndServe(":8080", router); err != nil {
 		panic(err)
 	}
