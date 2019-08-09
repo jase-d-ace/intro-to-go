@@ -43,10 +43,18 @@ type Store interface {
 	CreatePerson(person *Person) error
 	GetPersons() ([]*Person, error)
 	GetOnePerson(id int) (*Person, error)
+	UpdatePerson(person *Person, id int) error
+	DeletePerson(id int) error
 }
 
 type dbStore struct {
 	db *sql.DB
+}
+
+func (store *dbStore) UpdatePerson(person *Person, id int) error {
+	_, err := store.db.Query(`UPDATE persons SET nickname=$1, age=$2 WHERE id=$3 RETURNING *`, person.Nickname, person.Age, id)
+
+	return err
 }
 
 //defining the methods that we set up in our interface
@@ -68,6 +76,11 @@ func (store *dbStore) GetOnePerson(id int) (*Person, error) {
 	}
 	return personRes, nil
 
+}
+
+func (store *dbStore) DeletePerson(id int) error {
+	_, err := store.db.Query(`DELETE FROM persons WHERE id=$1`, id)
+	return err
 }
 
 func (store *dbStore) GetPersons() ([]*Person, error) {
@@ -104,8 +117,6 @@ var todos []Message
 
 var Persons []Person
 
-var extraTodos []Message
-
 func getPersonHandler(w http.ResponseWriter, r *http.Request) {
 	persons, err := store.GetPersons()
 
@@ -130,6 +141,50 @@ func getOnePersonHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonData, err := json.Marshal(person)
 	w.Write(jsonData)
+}
+
+func updatePersonHandler(w http.ResponseWriter, r *http.Request) {
+	updateObj := Person{}
+	personId := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(personId)
+
+	if err != nil {
+		panic(err)
+	}
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		panic(err)
+	}
+	json.Unmarshal(body, &updateObj)
+	store.UpdatePerson(&updateObj, id)
+
+	jsonPerson, _ := json.Marshal(updateObj)
+
+	if err != nil {
+		panic(err)
+	}
+
+	w.Write(jsonPerson)
+}
+
+func deletePersonHandler(w http.ResponseWriter, r *http.Request) {
+	personId := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(personId)
+
+	if err != nil {
+		panic(err)
+	}
+
+	store.DeletePerson(id)
+
+	type ResObj struct {
+		Status string `json:"status"`
+	}
+
+	resObj := ResObj{"ok"}
+
+	jsonRes, _ := json.Marshal(resObj)
+	w.Write(jsonRes)
 }
 
 func splashPage(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +284,8 @@ func main() {
 	router.HandleFunc("/people", getPersonHandler).Methods("GET")
 	router.HandleFunc("/todos", createPersonHandler).Methods("POST")
 	router.HandleFunc("/people/{id}", getOnePersonHandler).Methods("GET")
+	router.HandleFunc("/people/{id}", updatePersonHandler).Methods("PUT")
+	router.HandleFunc("/people/{id}", deletePersonHandler).Methods("DELETE")
 	if err := http.ListenAndServe(":8080", router); err != nil {
 		panic(err)
 	}
